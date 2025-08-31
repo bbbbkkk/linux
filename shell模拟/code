@@ -1,0 +1,174 @@
+#include <stdio.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <assert.h>
+#include <string.h>
+#include <sys/wait.h>
+#define LABEL1 "@"
+#define LABEL2 ":"
+#define LABEL3 "$"
+#define LINE_SIZE 1024
+#define ARGC_SIZE 32
+#define DELIM " \t"
+#define EXIT_CODE 100
+
+
+char commandline[LINE_SIZE];
+char *argv[ARGC_SIZE];
+int quit=0;
+int lastcode=0;
+
+const char*get_pwd()
+{
+    return getenv("PWD");
+}
+const char* getuser_name()
+{
+    return getenv("USER");
+}
+
+const char* gethost_name()
+{
+    return getenv("NAME");
+
+}
+
+void normal_command(char*_argv[])
+{
+    //创建子进程
+    pid_t id=fork();
+    if(id<0)
+    {
+        perror("fork");
+        return ;
+    }
+    else if(id==0)
+    {
+        //这里execvp的用法，第一参数环境变量不用添加，程序可自从查找
+        //第二参数是让系统查找哪个指令：ls
+        //需要如何执行这个指令:ls -a -n
+        execvp(_argv[0],_argv);
+        //exec命令执行成功不返回，执行错误返回-1
+        //这里如果执行成功，进程替换，就不会执行后面的代码
+        //这里如果执行了就说明进程替换错误
+        exit(EXIT_CODE);
+    }
+    else
+    {
+        int status =0;
+        pid_t rid=waitpid(id,&status,0);
+        if(rid==id)
+        {
+            lastcode=WEXITSTATUS(status);
+        }
+    }
+}
+
+int build_command(char*_argv[],int _argc)
+{
+    //cd指令
+    //strcmp相等返回0
+    if(_argc==2&&strcmp(_argv[0],"cd")==0)
+        {
+            chdir(_argv[1]);
+            char current_dir[1024];
+            char *oldpwd=getenv("PWD");
+            if(getcwd(oldpwd,sizeof(oldpwd))==NULL)
+            {
+                perror("getcwd");
+                return 1;
+            }
+            if(getcwd(current_dir,sizeof(current_dir))==NULL)
+            {
+                perror("getcwd");
+                return 1;
+            }
+            setenv("PWD",current_dir,1);
+            setenv("OLDPWD",oldpwd,1);
+            return 1;
+        }
+    //export指令
+    else if(_argc==2&&strcmp(_argv[0],"export")==0)
+    {
+
+        putenv(_argv[1]);
+        return 1;
+    }
+    //echo指令
+    else if(_argc==2&&strcmp(_argv[0],"echo")==0)
+    {
+        //ehco $?指令
+        if(strcmp(_argv[1],"$?")==0)
+        {
+            printf("%d\n",lastcode);
+            lastcode=0;
+        }
+        //echo $PATH类的指令
+        else if(*_argv[1]=='$')
+        {
+            char*val=getenv(_argv[1]+1);
+            if(val)
+            {
+                printf("%s\n",val);
+            }
+        }
+        //echo直接输出
+        else
+        {
+            printf("%s\n",_argv[1]);
+        }
+        return 1;
+    }
+
+    return 0;
+
+}
+
+int splitstring(char cline[],char *_argv[])
+{
+    int i=0;
+    //第一次传入实际字符串
+    //#define DELIM '\t'包含制表符tab和空格space
+    argv[i++]=strtok(cline,DELIM);
+    //这里传入NULL是规定用法：让strtok知道我们还要继续分割同一串字符串
+    //这里分割到最后是NULL，while判断为NULL-->退出
+    while(_argv[i++]=strtok(NULL,DELIM));
+    return i-1;
+
+}
+void interact(char cline[],int size)
+{
+    //打印bash信息
+    printf("%s"LABEL1"%s"LABEL2"%s"LABEL3" ",gethost_name(),getuser_name(),get_pwd());
+    char *s=fgets(cline,size,stdin);
+    assert(s);
+    (void) s;
+    //这里是去除fgets的\n
+    cline[strlen(cline)-1]='\0';
+}
+int main()
+{
+    //死循环
+    while(!quit)
+    {
+    //获得命令行
+    interact(commandline,sizeof(commandline));
+    //提取解析命令行
+    int argc= splitstring(commandline,argv);
+    //如果argc==0说明没有命令需要解析，就跳过后面的环节，重新下次下次循环
+    //这里模拟的是命令行无输入直接回车，重新下一次命令行
+    if(argc==0)
+    {
+        continue;
+    }
+    //指令的判断：内建命令还是普通命令执行
+    //内建命令
+    int n=build_command(argv,argc);
+    if(!n)
+    {
+        normal_command(argv);
+    }
+
+    }
+    return 0;
+}

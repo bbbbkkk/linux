@@ -24,11 +24,12 @@ int main()
         perror("open file fail");
         return 1;
     }
-    ssize_t rd=read(fd_2,buffer,strlen(message));
+    ssize_t rd=read(fd_2,buffer,sizeof(message)-1);
     if(rd<0)
     {
         perror("read file fail");
     }
+    buffer[rd]='\0';
     printf("%s\n",buffer);
     close(fd_2);
 

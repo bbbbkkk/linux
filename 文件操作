@@ -1,0 +1,34 @@
+#include <stdio.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <string.h>
+#include <sys/stat.h>
+int main()
+{
+    umask(0);
+    const char*message="helloworld&bit";
+    int fd_1=open("log.txt",O_WRONLY|O_CREAT|O_TRUNC,0666);
+    if(fd_1<0)
+    {
+        perror("open file fail");
+    }
+    write(fd_1,message,strlen(message));
+    close(fd_1);
+    char buffer[1024];
+//再次对文件进行操作需要重回新打开
+    int fd_2=open("log.txt",O_RDWR,0666);
+    if(fd_2<0)
+    {
+        perror("open file fail");
+    }
+    ssize_t rd=read(fd_2,buffer,strlen(message));
+    if(rd<0)
+    {
+        perror("read file fail");
+    }
+    printf("%s\n",buffer);
+    close(fd_2);
+
+
+    return 0;
+}

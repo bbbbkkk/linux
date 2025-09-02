@@ -12,6 +12,7 @@ int main()
     if(fd_1<0)
     {
         perror("open file fail");
+        return 1;
     }
     write(fd_1,message,strlen(message));
     close(fd_1);
@@ -21,6 +22,7 @@ int main()
     if(fd_2<0)
     {
         perror("open file fail");
+        return 1;
     }
     ssize_t rd=read(fd_2,buffer,strlen(message));
     if(rd<0)
